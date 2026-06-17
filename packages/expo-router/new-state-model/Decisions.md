@@ -248,7 +248,23 @@ The RFC scenarios are **iOS-centric**. Correct the native model:
   harder (the previous-destination preview must be ready at gesture-start, before a deferred commit). Don't silently
   regress; don't silently claim support.
 
-### N17 — Keep a `useNavigationBuilder` shim; options are a named subsystem, not the manifest (react-native)
+### N27 — No compatibility shims; `useNavigation` / `useNavigationBuilder` / `withLayoutContext` are deprecated (user steer, 2026-06-17)
+
+**Supersedes the shim half of [N17](#n17).** Per the user: do **not** build a `useNavigationBuilder`
+synthesis shim or any react-navigation-compat layer. `useNavigation` (the full `NavigationProp`) will be
+**deprecated**, not preserved. Consequences:
+
+- The new hooks (`useRouter`, `usePathname`, `useSegments`, `useLocalSearchParams`, `useLocalRouter`, …)
+  are built **directly** on the new store; there is no synthesized `NavigationState`/`type`/`routeNames`.
+- First-party navigators (Stack, Tabs, Drawer, SplitView, native-tabs) are **rewritten directly** on the
+  new render contract. Third-party/community navigators built on `withLayoutContext`/`useNavigationBuilder`
+  are **not** shimmed — they migrate to the new contract or are dropped; the old hooks emit deprecation.
+- This removes the largest compatibility workstream the react-native review flagged. The N17 point that
+  the **options system** (4-layer merge / `setOptions` / function-form options) is a named runtime
+  subsystem (`descriptors.ts`) **still stands** — it is rebuilt on the new layer, not via the old shim.
+
+### N17 — Options are a named subsystem, not the manifest; (shim half superseded by [N27](#n27)) {#n17}
+### N17 (original) — Keep a `useNavigationBuilder` shim; options are a named subsystem, not the manifest (react-native)
 
 Demoting navigators to a pure render layer ([N2](#n2)) **deletes the foundation** of `withLayoutContext` +
 `useNavigationBuilder` + descriptor/options-merging that **all** third-party navigators, Drawer, MaterialTopTabs, and
@@ -375,6 +391,37 @@ slice touches ~6–8 small files, breaks no public API (flag-gated), and proves/
   N11 deletes at cutover). It is a pure function; relocate it to a neutral module (e.g. `fork/`) during
   the P5 cutover so the new layer doesn't depend on the layer it replaces.
 - **Verified:** 49 state tests pass (Node + Web); `tsc` clean; reducer still never reads `kind`.
+
+## P3 implementation & pre-commit review outcomes
+
+> P3 (`store.tsx`) was challenged by four fresh agents (architecture/React, coverage, validity,
+> minimalism). Fixes applied:
+
+- **N28 — The imperative bridge advances OPTIMISTICALLY on commit (refines [N13](#n13)).** The
+  architecture/React review found that a post-commit-only snapshot makes **chained imperative actions
+  in one tick** silently drop (two `back()`s plan against the same stale snapshot → one pop, a
+  regression vs today's routing queue). Fix: `commit` applies the op to `bridge.snapshot` synchronously
+  (via the pure reducer) before dispatching to React. Because the reducer is pure and the store is the
+  **sole writer**, the optimistic value always equals the eventual committed state, so there is no
+  tearing. So N13 is refined: the bridge mirrors the **latest intended** state (optimistic + reconciled
+  post-commit), not strictly last-committed. Tests: two pushes / two backs in one `act` behave
+  correctly (the two-backs test fails under a stale snapshot).
+- **Coverage:** added a node-scoped `useLocalRouter` test via `NavigatorNode` (the headline N10 feature
+  was previously exercised only at the root default) and the chained-action tests above.
+- **Validity:** strengthened the unmount test (push first so `canGoBack` is `true`, so `false` after
+  unmount can only mean the bridge was cleared) + asserted pushed params land + renamed the
+  outside-provider test to call `useNavState` directly.
+- **Minimalism:** dropped the always-true `defer` param + dead sync branch (the native `flushSync` lane
+  re-arrives with the native layer, N5), merged the two `useLayoutEffect`s into one with cleanup, and
+  extracted a shared `ROOT_NODE_KEY` (used by hydrate's root node and the node-context default) to kill
+  the magic-string coupling.
+- **Deferred (recorded):** per-request SSR scoping of the module bridge ([N4](#n4) — the bridge is
+  client-only today; the effect doesn't run on the server), per-navigator **context slicing** (the
+  whole tree is in one context value — fine for one stack, revisit for fan-out), the native
+  `flushSync` sync lane, and full href **target resolution** (`resolveTarget`) for a global
+  `router.push(href)` — `useLocalRouter.push(name)` is what the render layer needs first.
+- **Verified:** 67 state tests pass (Node + Web); `tsc` clean; reducer still never reads `kind`;
+  React 19 `use()` + no `any` (CLAUDE.md).
 
 ## Scope reality (recorded honestly)
 

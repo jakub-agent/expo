@@ -10,13 +10,13 @@
 
 import { INTERNAL_SLOT_NAME } from '../constants';
 import { getStateFromPath, type Options, type ResultState } from '../fork/getStateFromPath';
-import { makeNodeKey, makeRouteKey } from './keys';
+import { makeNodeKey, makeRouteKey, ROOT_NODE_KEY } from './keys';
 import type { ResolveKind } from './manifest';
 import type { GlobalNavState, NavNode, RouteEntry } from './types';
 
 /** Convert a matched `ResultState` (nested via `state`) into a homogeneous `NavNode` tree. */
 export function resultStateToTree(state: ResultState, resolveKind: ResolveKind): NavNode {
-  return convert(state, '', 'root', resolveKind);
+  return convert(state, '', ROOT_NODE_KEY, resolveKind);
 }
 
 function convert(

@@ -15,3 +15,6 @@ export function makeRouteKey(name: string, seq: number): string {
 export function makeNodeKey(routeKey: string): string {
   return `${routeKey}.nav`;
 }
+
+/** Key of the root navigator node. Shared by hydrate and the store so the default scope agrees. */
+export const ROOT_NODE_KEY = 'root';

@@ -136,11 +136,11 @@ Default to decide via challenge (candidates: `none` for reset/seed, `default` pe
   preview/preload promotion + zoom ([N18](./Decisions.md)), `singular`/`getId`, modal presentation.
 - **Tabs** (JS then native) — promotion-on-nav batch ([N6](./Decisions.md)), `focusOrder` on the node
   ([N12](./Decisions.md)), `Activity`/lazy, native-tabs back asymmetry ([N16](./Decisions.md)).
-- **Drawer / MaterialTopTabs / community navigators** — via the `useNavigationBuilder` synthesis shim
-  ([N17](./Decisions.md)).
+- **Drawer / MaterialTopTabs / community navigators** — rewritten directly on the new render contract;
+  **no shim** ([N27](./Decisions.md)). `useNavigation`/`useNavigationBuilder`/`withLayoutContext` are deprecated.
 - **SplitView** ([N8](./Decisions.md)), **headless `ui`**, **`standard-navigation` bridge** ([N3](./Decisions.md)).
-- **Compatibility & omitted subsystems** ([N19](./Decisions.md), [N20](./Decisions.md)) — `useNavigation` shim,
-  loaders/data, redirects/guards (D9), navigationEvents, RSC, typed-routes.
+- **Omitted subsystems** ([N20](./Decisions.md)) — loaders/data, redirects/guards (D9), navigationEvents, RSC,
+  typed-routes. (No `useNavigation` shim — deprecated, [N27](./Decisions.md).)
 - **Final cutover (P5-global)** — flip the default, delete the old path + flag, full `router-e2e` green.
 
 ## 4. Open questions — resolved via fresh agents (see [`./Decisions.md`](./Decisions.md))
