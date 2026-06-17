@@ -10,3 +10,8 @@
 export function makeRouteKey(name: string, seq: number): string {
   return `${name}#${seq}`;
 }
+
+/** Key for the navigator node hosted by a route. Derived from the route key so hydration is stable. */
+export function makeNodeKey(routeKey: string): string {
+  return `${routeKey}.nav`;
+}

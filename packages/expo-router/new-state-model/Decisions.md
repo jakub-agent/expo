@@ -346,6 +346,36 @@ slice touches ~6–8 small files, breaks no public API (flag-gated), and proves/
 - **Note (process):** `project.ts` + the [N11](#n11) golden-file gate belong to **P2**, not P1 — P1 is the
   pure core only. The render layer (P4) is gated on that golden test, per [N21](#n21).
 
+## P2 implementation & pre-commit review outcomes
+
+> P2 (`hydrate` + `manifest` + `project`) was challenged by four fresh agents (coverage, validity,
+> architecture, minimalism). Project.ts shipped in `a402fed`; hydrate/manifest fixes below.
+
+- **N25 — The manifest resolves `kind` by full layout PATH and throws on an unregistered path.** Two
+  fixes the architecture review forced: (a) keying by **bare route name** misresolves for name
+  collisions across parents and dynamic `[id]` layouts → key by the **full layout path** (`''` = root),
+  accumulated during conversion. (b) A silent `'stack'` **fallback** would mis-type a tabs node and give
+  it stack back-behavior → an unregistered kind now **throws a clear error** (kind must come from static
+  config, never guessed). Until navigators are tagged statically, the path→kind map is the registry.
+- **N26 — Hydrate↔reducer key discipline is consistent by construction (N15/N22).** Hydrate keys routes
+  by per-node position (`name#0..n-1`) and sets `seq = count`; the reducer mints `name#seq` from there.
+  A seam test hydrates repeated names then pushes the same name and asserts all keys stay unique.
+- **`unwrapRootSlot`:** the matcher nests under the `__root` slot; the homogeneous root is the slot's
+  **content**, so we unwrap it (and re-wrap symmetrically in `project`). Verified the real matcher emits
+  `__root`-wrapped state for `/details`. Both unwrap branches unit-tested.
+- **Minimalism:** dropped the `Manifest` wrapper type (`createManifest` returns `ResolveKind` directly),
+  un-exported `ROOT_LAYOUT`, and typed `hydrate`'s options via the real `Options` type instead of
+  `Parameters<...>`.
+- **Deferred (recorded, not done this slice):** `+not-found`/`_sitemap` top routes — the real matcher
+  returns a `+not-found` route (not `undefined`) for unmatched paths; hydration of those is part of the
+  not-found subsystem (N20). Deep multi-level nesting through the *real* matcher (vs the unit converter's
+  `toEqual` nesting tests) and group/dynamic/catch-all round-trips via the matcher are coverage to add
+  when the Stack render layer wires up the real linking config.
+- **F5 (note for P5):** `project.ts` imports `getRouteInfoFromState` from `global-state/` (the module
+  N11 deletes at cutover). It is a pure function; relocate it to a neutral module (e.g. `fork/`) during
+  the P5 cutover so the new layer doesn't depend on the layer it replaces.
+- **Verified:** 49 state tests pass (Node + Web); `tsc` clean; reducer still never reads `kind`.
+
 ## Scope reality (recorded honestly)
 
 A faithful, fully-working rewrite of **all** navigators with all native behaviors (iOS preview/zoom/split collapse,
