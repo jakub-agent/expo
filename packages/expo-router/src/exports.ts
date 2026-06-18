@@ -129,3 +129,10 @@ export type {
   NativeStackOptionsArgs,
   NativeStackScreenProps,
 } from './react-navigation/native-stack';
+
+// New navigation state model (unstable, behind EXPO_ROUTER_STATE_MODEL=new). See new-state-model/.
+export {
+  useLocalRouter as unstable_useLocalRouter,
+  useNavState as unstable_useNavState,
+  usePathname as unstable_useStatePathname,
+} from './state/store';
