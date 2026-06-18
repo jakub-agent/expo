@@ -454,6 +454,35 @@ slice touches ~6–8 small files, breaks no public API (flag-gated), and proves/
 - **Verified:** 81 state tests pass (Node + Web + iOS render); flag-off path unchanged (2330 nav
   regression tests pass); `tsc` clean.
 
+## P4 on-device (iOS simulator) findings — N30
+
+Built the `state-stack` e2e app on the new model (`EXPO_ROUTER_STATE_MODEL=new`) and ran it on the
+iPhone 17 Pro simulator (Release, self-contained). Results:
+
+- **✅ The new state model RENDERS on iOS.** The Home screen renders end-to-end through the new
+  store + `Stack` render layer driving `react-native-screens`, hydrated from the route tree — **no
+  react-navigation in the path**. Screenshot captured and sent. This is the core "renders with the
+  new model" proof.
+- **⚠️ Interactive native-stack navigation (push/back) is not yet working on-device** — the exact
+  hard P4 integration the reviewers flagged (R2/R3 descriptor/context reprovisioning; R6 transition ×
+  `ScreenStack`). Two concrete issues found:
+  1. **React context does not reach screens hosted inside `react-native-screens` scenes.** A screen
+     calling `useNavState` throws "must be used within a `<StateProvider>`" even though there is a
+     single store module. Re-providing the store contexts inside each `ScreenStackItem` (the
+     react-navigation pattern; now in `Stack.tsx`) was necessary but **did not fully resolve it** on
+     the real native stack — needs further investigation against react-native-screens scene hosting.
+  2. **`push` does not drive the native `ScreenStack`** on-device (works in the 81 jest tests, which
+     don't use the real native stack). Switching JS nav to the **sync lane** (R6 recommendation; now
+     in `store.tsx`) was correct but not sufficient alone.
+- **Diagnosis constraints in this sandbox:** Release builds strip `console.log` (no on-device JS
+  logging); tap automation (idb/AppleScript/accessibility) is blocked (no UI-driven taps); Metro's
+  default port (8081) is held by another session. Resolving the native interaction needs a **dev
+  build** (Metro on a free port → `console.log`/redbox/fast iteration), which is the right next step.
+- **Kept as in-progress, correct improvements** (committed): the sync-lane native push/back
+  (`store.tsx`) and the per-`ScreenStackItem` context re-provision (`Stack.tsx`). The interactive
+  on-device push/back remains the next focused debugging task; the navigation **logic** is fully
+  proven by the 81 unit/render tests.
+
 ## Scope reality (recorded honestly)
 
 A faithful, fully-working rewrite of **all** navigators with all native behaviors (iOS preview/zoom/split collapse,

@@ -29,9 +29,9 @@ import { project } from './project';
 import { reducer } from './reducer';
 import type { GlobalNavState, NavNode, Op } from './types';
 
-const NavStateContext = createContext<GlobalNavState | null>(null);
+export const NavStateContext = createContext<GlobalNavState | null>(null);
 /** The key of the nearest navigator node; the render layer scopes this per navigator (default root). */
-const NavigatorNodeContext = createContext<string>(ROOT_NODE_KEY);
+export const NavigatorNodeContext = createContext<string>(ROOT_NODE_KEY);
 
 // Module-level bridge for the imperative router. `snapshot` is the latest intended state; `dispatch`
 // hands an op to React. Read only outside render (N13).
@@ -112,11 +112,14 @@ export function useLocalRouter() {
     () => ({
       push(name: string, params?: Record<string, unknown>) {
         const b = bridge.current;
-        if (b) commit(planPush(b.snapshot, nodeKey, name, params));
+        // Commit synchronously: a transition-deferred update does not reliably drive the native
+        // react-native-screens push on-device (the R6 risk the reviewers flagged). The native stack
+        // animates the push itself once the new screen is in the committed children.
+        if (b) commit(planPush(b.snapshot, nodeKey, name, params), false);
       },
       back() {
         const b = bridge.current;
-        if (b) commit(planGoBack(b.snapshot, nodeKey));
+        if (b) commit(planGoBack(b.snapshot, nodeKey), false);
       },
       // Reconcile a native pop/swipe-dismiss that already animated `count` screens away (scenario 2):
       // remove them from state on the sync lane so the reducer does not re-animate.
