@@ -19,6 +19,7 @@ import { Screen } from './primitives';
 import type { LinkingOptions, NavigationAction } from './react-navigation/native';
 import { StackRouter, useNavigationBuilder } from './react-navigation/native';
 import { initScreensFeatureFlags } from './screensFeatureFlags';
+import { StateModelRoot } from './state/render/Root';
 import type { RequireContext } from './types';
 import { parseUrlUsingCustomBase } from './utils/url';
 import { Sitemap } from './views/Sitemap';
@@ -58,6 +59,21 @@ const documentTitle = {
  */
 export function ExpoRoot({ wrapper: ParentWrapper = Fragment, ...props }: ExpoRootProps) {
   initScreensFeatureFlags();
+
+  // New navigation state model (greenfield, behind a flag — Decisions N11). The flag is a build-time
+  // constant, so this branch is stable for the component's lifetime (hook order is unaffected).
+  if (process.env.EXPO_ROUTER_STATE_MODEL === 'new') {
+    return (
+      <ParentWrapper>
+        <SafeAreaProvider initialMetrics={INITIAL_METRICS}>
+          <StateModelRoot
+            context={props.context}
+            initialPath={typeof props.location === 'string' ? props.location : undefined}
+          />
+        </SafeAreaProvider>
+      </ParentWrapper>
+    );
+  }
   /*
    * Due to static rendering we need to wrap these top level views in second wrapper
    * View's like <SafeAreaProvider /> generate a <div> so if the parent wrapper

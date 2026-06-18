@@ -24,10 +24,10 @@ import {
 } from 'react';
 
 import { ROOT_NODE_KEY } from './keys';
-import { canGoBack as planCanGoBack, planGoBack, planPush } from './planner';
+import { canGoBack as planCanGoBack, findNode, planDismiss, planGoBack, planPush } from './planner';
 import { project } from './project';
 import { reducer } from './reducer';
-import type { GlobalNavState, Op } from './types';
+import type { GlobalNavState, NavNode, Op } from './types';
 
 const NavStateContext = createContext<GlobalNavState | null>(null);
 /** The key of the nearest navigator node; the render layer scopes this per navigator (default root). */
@@ -35,10 +35,14 @@ const NavigatorNodeContext = createContext<string>(ROOT_NODE_KEY);
 
 // Module-level bridge for the imperative router. `snapshot` is the latest intended state; `dispatch`
 // hands an op to React. Read only outside render (N13).
-type Bridge = { dispatch: (op: Op) => void; snapshot: GlobalNavState };
+type Bridge = { dispatch: (op: Op, defer: boolean) => void; snapshot: GlobalNavState };
 const bridge: { current: Bridge | null } = { current: null };
 
-function commit(ops: Op[]): void {
+// `defer` (the JS-navigation default) commits in a transition so a newer action can supersede the
+// in-flight render (N5). The non-deferred lane is for reconciling a native gesture that ALREADY
+// animated (scenario 2): a plain dispatch in the event handler commits in the same frame and must
+// not re-animate.
+function commit(ops: Op[], defer = true): void {
   const b = bridge.current;
   if (!b || ops.length === 0) return;
   const single = ops.length === 1 ? ops[0] : undefined;
@@ -46,7 +50,7 @@ function commit(ops: Op[]): void {
   // Advance the snapshot synchronously so a chained imperative action sees this one's effect, then
   // hand the same op to React (reconciled by the post-commit effect to the identical committed value).
   b.snapshot = reducer(b.snapshot, op);
-  b.dispatch(op);
+  b.dispatch(op, defer);
 }
 
 export function StateProvider({
@@ -61,7 +65,10 @@ export function StateProvider({
   // Mirror committed state + dispatch into the module bridge for out-of-render reads (N13). JS
   // navigation defers so a new transition can supersede an in-flight render (N5).
   useLayoutEffect(() => {
-    bridge.current = { dispatch: (op) => startTransition(() => rawDispatch(op)), snapshot: state };
+    bridge.current = {
+      dispatch: (op, defer) => (defer ? startTransition(() => rawDispatch(op)) : rawDispatch(op)),
+      snapshot: state,
+    };
     return () => {
       bridge.current = null;
     };
@@ -89,6 +96,15 @@ export function useSegments(): string[] {
   return project(useNavState()).segments;
 }
 
+/** The `NavNode` for the nearest navigator (scoped by `NavigatorNode`); used by the render layer. */
+export function useNavNode(): NavNode {
+  const state = useNavState();
+  const nodeKey = use(NavigatorNodeContext);
+  const node = findNode(state.root, nodeKey);
+  if (!node) throw new Error(`No navigator node "${nodeKey}" in the navigation tree.`);
+  return node;
+}
+
 /** A router scoped to the nearest navigator node (C11/N10). */
 export function useLocalRouter() {
   const nodeKey = use(NavigatorNodeContext);
@@ -101,6 +117,12 @@ export function useLocalRouter() {
       back() {
         const b = bridge.current;
         if (b) commit(planGoBack(b.snapshot, nodeKey));
+      },
+      // Reconcile a native pop/swipe-dismiss that already animated `count` screens away (scenario 2):
+      // remove them from state on the sync lane so the reducer does not re-animate.
+      dismiss(count = 1) {
+        const b = bridge.current;
+        if (b) commit(planDismiss(b.snapshot, nodeKey, count), false);
       },
       canGoBack(): boolean {
         const b = bridge.current;

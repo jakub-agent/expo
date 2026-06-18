@@ -1,4 +1,4 @@
-import { canGoBack, findNode, focusedPath, planGoBack, planPush } from '../planner';
+import { canGoBack, findNode, focusedPath, planDismiss, planGoBack, planPush } from '../planner';
 import { reducer } from '../reducer';
 import type { GlobalNavState, NavNode, Op, RouteEntry } from '../types';
 
@@ -85,6 +85,33 @@ describe('planner — planGoBack', () => {
   it('canGoBack is true when the focused stack has history', () => {
     const before: GlobalNavState = { root: stack('home.stack', ['index', 'details'], 1) };
     expect(canGoBack(before)).toBe(true);
+  });
+});
+
+describe('planner — planDismiss (native multi-pop reconcile, scenario 2)', () => {
+  it('removes the top route by default', () => {
+    const before: GlobalNavState = { root: stack('s', ['a', 'b', 'c'], 2) };
+    const ops = planDismiss(before, 's');
+    expect(ops).toEqual([{ type: 'removeRoute', nodeKey: 's', routeKey: 'c#2' }]);
+    expect(apply(before, ops).root.routes.map((r) => r.key)).toEqual(['a#0', 'b#1']);
+  });
+
+  it('removes the top `count` routes at distinct keys', () => {
+    const before: GlobalNavState = { root: stack('s', ['a', 'b', 'c'], 2) };
+    const ops = planDismiss(before, 's', 2);
+    expect(ops.map((o) => (o.type === 'removeRoute' ? o.routeKey : null))).toEqual(['b#1', 'c#2']);
+    expect(apply(before, ops).root.routes.map((r) => r.key)).toEqual(['a#0']);
+  });
+
+  it('never removes below the root route', () => {
+    const before: GlobalNavState = { root: stack('s', ['a', 'b'], 1) };
+    const ops = planDismiss(before, 's', 5); // cap to index (1)
+    expect(apply(before, ops).root.routes.map((r) => r.key)).toEqual(['a#0']);
+  });
+
+  it('is a no-op for an unknown node', () => {
+    const before: GlobalNavState = { root: stack('s', ['a', 'b'], 1) };
+    expect(planDismiss(before, 'nope', 1)).toEqual([]);
   });
 });
 

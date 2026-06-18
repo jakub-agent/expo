@@ -70,3 +70,18 @@ export function planGoBack(state: GlobalNavState, fromNodeKey?: string): Op[] {
 export function canGoBack(state: GlobalNavState, fromNodeKey?: string): boolean {
   return planGoBack(state, fromNodeKey).length > 0;
 }
+
+/**
+ * Plan removing the top `count` routes of the stack node `nodeKey` — the reconcile for a native
+ * multi-pop/swipe-dismiss that already animated (scenario 2 / N16 iOS). Each op targets a distinct
+ * route key, so the order the reducer applies them in does not matter. Capped so the node keeps its
+ * root route. The caller commits these on the SYNC lane so the reducer does not re-animate.
+ */
+export function planDismiss(state: GlobalNavState, nodeKey: string, count = 1): Op[] {
+  const node = findNode(state.root, nodeKey);
+  if (!node) return [];
+  const removeCount = Math.min(Math.max(count, 0), node.index);
+  return node.routes
+    .slice(node.index - removeCount + 1, node.index + 1)
+    .map((route) => ({ type: 'removeRoute', nodeKey: node.key, routeKey: route.key }));
+}

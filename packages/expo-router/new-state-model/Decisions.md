@@ -423,6 +423,37 @@ slice touches ~6–8 small files, breaks no public API (flag-gated), and proves/
 - **Verified:** 67 state tests pass (Node + Web); `tsc` clean; reducer still never reads `kind`;
   React 19 `use()` + no `any` (CLAUDE.md).
 
+## P4 implementation & pre-commit review outcomes
+
+> P4 (`render/Stack.tsx`, `render/Root.tsx`, the `ExpoRoot` flag branch) was challenged by three fresh
+> agents (architecture/integration, coverage+validity, minimalism). Fixes applied:
+
+- **N29 — Scenario-2 native dismiss is reconciled in ONE op on the sync lane (not a deferred loop).**
+  The architecture + coverage reviews both caught that `onDismissed` looped `local.back()` through the
+  transition-deferred (animated) lane — but native already animated the swipe (scenario 2 / [N16](#n16)
+  iOS), so it must NOT re-animate and must commit in one op. Fix: a `planDismiss(node, count)` planner op
+  (removes the top `count` routes by distinct key) + a re-added **non-deferred dispatch lane** in the
+  store (`commit(ops, defer=false)` → plain `rawDispatch`, no `startTransition`; `flushSync` isn't
+  cleanly available in RN and a plain dispatch in the event handler commits same-frame, which is what
+  scenario 2 needs). `useLocalRouter().dismiss(count)` drives it; `Stack.onDismissed` calls it. Tested:
+  native dismiss, `dismissCount>1` multi-pop, and the `planDismiss` cap-at-root cases.
+- **Coverage added:** screen order/topness via a `ScreenStackItem` spy (proves the pushed screen is the
+  native top, since all items mount in jest), route-name-not-in-screens → null, deep-link minimal tree
+  (home absent), and params through the **real** `useLocalSearchParams` (dynamic `[id]`).
+- **Minimalism / perf:** memoized the `Root` boot derivation (getRoutes/linking/hydrate/buildScreens run
+  once, not per render) and dropped the dead `redirects: []` linking option.
+- **Deferred (recorded, curated-fixtures-only for now):** `Root` hardcodes the root navigator as a
+  `Stack` (manifest `{ '': 'stack' }`) and **ignores the app's `_layout`** — multi-navigator manifests
+  + the per-`_layout` navigator declaration + nested navigators are later slices; `buildScreens` is
+  single-level-route-only. Screens are rendered as raw `loadRoute().default` with only
+  `LocalRouteParamsContext` — **no `CurrentRouteContext`/Suspense/error-boundary** yet, so
+  `useRouteNode`/`useGlobalSearchParams`/Suspense/`+not-found` screens are out of scope until the
+  options/`descriptors` subsystem ([N17](#n17)) lands. The `ExpoRoot` branch passes only a string
+  `location` (a `URL` is dropped — fine on native where `getInitialURL` covers it; fix for web/SSR).
+  `activityState={2}` is correct for pushed screens but preload must use `0` (preload slice).
+- **Verified:** 81 state tests pass (Node + Web + iOS render); flag-off path unchanged (2330 nav
+  regression tests pass); `tsc` clean.
+
 ## Scope reality (recorded honestly)
 
 A faithful, fully-working rewrite of **all** navigators with all native behaviors (iOS preview/zoom/split collapse,
