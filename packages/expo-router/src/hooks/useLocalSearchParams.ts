@@ -2,8 +2,9 @@
 
 import React from 'react';
 
-import { LocalRouteParamsContext } from '../Route';
+import { LocalRouteParamsContext, useRouteNode } from '../Route';
 import { usePreviewInfo } from '../link/preview/PreviewRouteContext';
+import { NavigationStateContext } from '../react-navigation/core/NavigationStateContext';
 import type { RouteParams, RoutePath, UnknownOutputParams } from '../types';
 
 /**
@@ -47,9 +48,19 @@ export function useLocalSearchParams<
 >(): RouteParams<TRoute> & TParams;
 export function useLocalSearchParams() {
   const params = React.use(LocalRouteParamsContext) ?? {};
+  const routeNode = useRouteNode();
+  let localParams = params;
+  if (routeNode?.type === 'layout') {
+    let state = React.use(NavigationStateContext).state;
+    while (state) {
+      const childRoute = state.routes[state.index ?? 0];
+      localParams = { ...localParams, ...childRoute?.params };
+      state = childRoute?.state;
+    }
+  }
   const { params: previewParams } = usePreviewInfo();
   return Object.fromEntries(
-    Object.entries(previewParams ?? params).map(([key, value]) => {
+    Object.entries(previewParams ?? localParams).map(([key, value]) => {
       // React Navigation doesn't remove `undefined` values from the params object, and you cannot remove them via
       // `navigation.setParams()` as it shallow merges. Hence, we hide them here. We also pass `null` through unchanged
       // for the same reason; running it through `decodeURIComponent()` would otherwise stringify it to `null`.

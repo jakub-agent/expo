@@ -1,8 +1,9 @@
 import { act } from '@testing-library/react-native';
 import { expectTypeOf } from 'expect-type';
+import { Text } from 'react-native';
 
 import { router, Slot } from '../../exports';
-import { renderRouter } from '../../testing-library';
+import { renderRouter, screen } from '../../testing-library';
 import type { UnknownOutputParams } from '../../types';
 import { useLocalSearchParams } from '../useLocalSearchParams';
 import { renderHook, renderHookOnce } from './renderHook';
@@ -66,6 +67,33 @@ describe(useLocalSearchParams, () => {
     // The first screen has not rerendered
     expect(results1).toEqual([{ id: '1' }, { id: '2' }]);
     expect(results2).toEqual([{ id: '3', fruit: 'apple' }]);
+  });
+
+  it('returns child query params in a dynamic layout after replace', async () => {
+    await renderRouter({
+      index: () => null,
+      'play/flag/[region]/_layout': function Layout() {
+        return (
+          <>
+            <Text testID="layout-params">{JSON.stringify(useLocalSearchParams())}</Text>
+            <Slot />
+          </>
+        );
+      },
+      'play/flag/[region]/index': () => null,
+    });
+
+    await act(() => router.replace('/play/flag/150?onboarding=1'));
+
+    expect(screen.getByTestId('layout-params')).toHaveTextContent(
+      JSON.stringify({ region: '150', onboarding: '1' })
+    );
+
+    await act(() => router.replace('/play/flag/150?onboarding=2'));
+
+    expect(screen.getByTestId('layout-params')).toHaveTextContent(
+      JSON.stringify({ region: '150', onboarding: '2' })
+    );
   });
 
   it(`defaults abstract types`, async () => {
