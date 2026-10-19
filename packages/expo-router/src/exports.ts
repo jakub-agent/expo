@@ -11,6 +11,7 @@ export {
   useSegments,
   useRootNavigation,
   useRootNavigationState,
+  useCanDismiss,
   useLoaderData,
   useCurrentRouteInfo,
 } from './hooks';
